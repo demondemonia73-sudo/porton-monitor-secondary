@@ -1,23 +1,79 @@
-// Generador de PDF y Excel - VERSIÓN CON LOGOS DESDE GITHUB
+// Generador de PDF y Excel - VERSIÓN CORREGIDA CON VERIFICACIÓN
 class GeneradorPDF {
     constructor() {
-        // URLs de los logos en GitHub (CORREGIDO: .webp para la carrera)
+        console.log('📄 Inicializando GeneradorPDF...');
+        this.libreriasCargadas = false;
+        
         this.urlsLogos = {
             instituto: window.location.origin + '/porton-monitor-secondary/img/logo-instituto.png',
             carrera: window.location.origin + '/porton-monitor-secondary/img/logo-carrera.webp'
         };
         
-        // También intentar cargar desde localStorage como respaldo
         this.logosCache = {
             instituto: localStorage.getItem('logo_instituto'),
             carrera: localStorage.getItem('logo_carrera')
         };
+        
+        // Verificar si las librerías ya están cargadas
+        this.verificarLibrerias();
+    }
+
+    verificarLibrerias() {
+        if (typeof jspdf !== 'undefined' && typeof html2canvas !== 'undefined') {
+            console.log('✅ Librerías jsPDF y html2canvas ya cargadas');
+            this.libreriasCargadas = true;
+        } else {
+            console.log('⏳ Esperando carga de librerías...');
+            this.cargarLibrerias();
+        }
+    }
+
+    async cargarLibrerias() {
+        return new Promise((resolve, reject) => {
+            // Cargar jsPDF
+            const script1 = document.createElement('script');
+            script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            script1.onload = () => {
+                console.log('✅ jsPDF cargado');
+                // Cargar html2canvas
+                const script2 = document.createElement('script');
+                script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                script2.onload = () => {
+                    console.log('✅ html2canvas cargado');
+                    this.libreriasCargadas = true;
+                    resolve();
+                };
+                script2.onerror = (e) => {
+                    console.error('❌ Error cargando html2canvas:', e);
+                    reject(e);
+                };
+                document.head.appendChild(script2);
+            };
+            script1.onerror = (e) => {
+                console.error('❌ Error cargando jsPDF:', e);
+                reject(e);
+            };
+            document.head.appendChild(script1);
+        });
     }
 
     async generarReportePDF(tipo = 'completo') {
+        console.log('📑 Generando PDF tipo:', tipo);
+        
         try {
+            // Mostrar mensaje de carga
+            this.mostrarMensajeCarga('Generando PDF, espere un momento...');
+            
+            // Verificar librerías
+            if (!this.libreriasCargadas) {
+                console.log('Cargando librerías...');
+                await this.cargarLibrerias();
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            // Verificar que jsPDF esté disponible
             if (typeof jspdf === 'undefined') {
-                await this.cargarJsPDF();
+                throw new Error('jsPDF no está disponible');
             }
             
             const { jsPDF } = window.jspdf;
@@ -49,10 +105,73 @@ class GeneradorPDF {
             const fecha = new Date().toISOString().split('T')[0];
             doc.save(`reporte_porton_${fecha}.pdf`);
             
+            this.mostrarMensajeExito('✅ PDF generado correctamente');
+            
         } catch (error) {
-            console.error('Error generando PDF:', error);
-            alert('Error al generar PDF. Asegúrate de tener conexión a internet.');
+            console.error('❌ Error generando PDF:', error);
+            this.mostrarMensajeError('Error al generar PDF: ' + error.message);
         }
+    }
+
+    mostrarMensajeCarga(mensaje) {
+        const toast = document.createElement('div');
+        toast.id = 'pdfLoadingToast';
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        `;
+        toast.innerHTML = `⏳ ${mensaje}`;
+        document.body.appendChild(toast);
+    }
+
+    mostrarMensajeExito(mensaje) {
+        const toast = document.getElementById('pdfLoadingToast');
+        if (toast) toast.remove();
+        
+        const exito = document.createElement('div');
+        exito.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 10000;
+            font-size: 14px;
+        `;
+        exito.innerHTML = `✅ ${mensaje}`;
+        document.body.appendChild(exito);
+        setTimeout(() => exito.remove(), 3000);
+    }
+
+    mostrarMensajeError(mensaje) {
+        const toast = document.getElementById('pdfLoadingToast');
+        if (toast) toast.remove();
+        
+        const error = document.createElement('div');
+        error.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #ef4444;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 10px;
+            z-index: 10000;
+            font-size: 14px;
+        `;
+        error.innerHTML = `❌ ${mensaje}`;
+        document.body.appendChild(error);
+        setTimeout(() => error.remove(), 5000);
     }
 
     async cargarImagenDesdeURL(url) {
@@ -67,7 +186,10 @@ class GeneradorPDF {
                 ctx.drawImage(img, 0, 0);
                 resolve(canvas.toDataURL('image/png'));
             };
-            img.onerror = reject;
+            img.onerror = (e) => {
+                console.log('No se pudo cargar imagen:', url);
+                reject(e);
+            };
             img.src = url;
         });
     }
@@ -77,18 +199,14 @@ class GeneradorPDF {
         const logoWidth = 25;
         const logoHeight = 25;
         
-        // Intentar cargar logo del Instituto
+        // Logo izquierdo (Instituto)
         let logoInstitutoData = null;
         try {
             logoInstitutoData = await this.cargarImagenDesdeURL(this.urlsLogos.instituto);
         } catch(e) {
-            console.log('No se pudo cargar logo instituto desde GitHub, intentando desde localStorage');
-            if (this.logosCache.instituto) {
-                logoInstitutoData = this.logosCache.instituto;
-            }
+            console.log('Usando texto para logo instituto');
         }
         
-        // Logo izquierdo (Instituto)
         if (logoInstitutoData) {
             try {
                 doc.addImage(logoInstitutoData, 'PNG', 15, 10, logoWidth, logoHeight);
@@ -111,18 +229,14 @@ class GeneradorPDF {
         doc.text('Sistema Predictivo de Mantenimiento', pageWidth / 2, 28, { align: 'center' });
         doc.text('Portón Automático', pageWidth / 2, 34, { align: 'center' });
         
-        // Intentar cargar logo de la Carrera (ahora con .webp)
+        // Logo derecho (Carrera)
         let logoCarreraData = null;
         try {
             logoCarreraData = await this.cargarImagenDesdeURL(this.urlsLogos.carrera);
         } catch(e) {
-            console.log('No se pudo cargar logo carrera desde GitHub, intentando desde localStorage');
-            if (this.logosCache.carrera) {
-                logoCarreraData = this.logosCache.carrera;
-            }
+            console.log('Usando texto para logo carrera');
         }
         
-        // Logo derecho (Carrera)
         if (logoCarreraData) {
             try {
                 doc.addImage(logoCarreraData, 'PNG', pageWidth - 40, 10, logoWidth, logoHeight);
@@ -247,7 +361,7 @@ class GeneradorPDF {
                 if (yPos > 270) {
                     doc.addPage();
                     yPos = 20;
-                    await this.agregarEncabezadoConLogos(doc);
+                    this.agregarEncabezadoConLogos(doc);
                     yPos = 50;
                 }
                 doc.text(`${fecha.substring(5)}: ${cantidad} ciclos`, 20, yPos);
@@ -474,22 +588,6 @@ class GeneradorPDF {
         return detalles.join(' | ') || 'Sin detalles';
     }
 
-    async cargarJsPDF() {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-            script.onload = () => {
-                const canvasScript = document.createElement('script');
-                canvasScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-                canvasScript.onload = resolve;
-                canvasScript.onerror = reject;
-                document.head.appendChild(canvasScript);
-            };
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-    }
-
     async cargarSheetJS() {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
@@ -502,6 +600,8 @@ class GeneradorPDF {
 
     async exportarExcelCompleto() {
         try {
+            this.mostrarMensajeCarga('Generando Excel, espere...');
+            
             if (typeof XLSX === 'undefined') {
                 await this.cargarSheetJS();
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -567,11 +667,11 @@ class GeneradorPDF {
             const fecha = new Date().toISOString().split('T')[0];
             XLSX.writeFile(wb, `reporte_porton_${fecha}.xlsx`);
             
-            alert('✅ Excel exportado correctamente');
+            this.mostrarMensajeExito('✅ Excel exportado correctamente');
             
         } catch (error) {
             console.error('Error exportando Excel:', error);
-            alert('Error al exportar a Excel: ' + error.message);
+            this.mostrarMensajeError('Error al exportar a Excel: ' + error.message);
         }
     }
 }
