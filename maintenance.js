@@ -1,1 +1,327 @@
+// Sistema de mantenimiento mejorado
+class SistemaMantenimiento {
+    constructor() {
+        this.ciclos = this.cargarCiclos();
+        this.ultimoEstado = null;
+        this.alertas = [];
+        this.historialMantenimiento = this.cargarHistorialMantenimiento();
+        this.cicloActual = null;
+    }
 
+    cargarCiclos() {
+        const guardado = localStorage.getItem('porton_ciclos_avanzado');
+        return guardado ? JSON.parse(guardado) : {
+            total: 0,
+            historial: [],
+            ultimoMantenimiento: null,
+            predicciones: {}
+        };
+    }
+
+    cargarHistorialMantenimiento() {
+        const guardado = localStorage.getItem('porton_historial_mantenimiento');
+        return guardado ? JSON.parse(guardado) : [];
+    }
+
+    guardarCiclos() {
+        localStorage.setItem('porton_ciclos_avanzado', JSON.stringify(this.ciclos));
+    }
+
+    guardarHistorialMantenimiento() {
+        localStorage.setItem('porton_historial_mantenimiento', JSON.stringify(this.historialMantenimiento));
+    }
+
+    procesarCambioEstado(nuevoEstado, timestamp) {
+        if (this.ultimoEstado === 'CERRADO' && nuevoEstado === 'ABIERTO') {
+            this.iniciarCiclo(timestamp);
+        } else if (this.ultimoEstado === 'ABIERTO' && nuevoEstado === 'CERRADO') {
+            this.completarCiclo(timestamp);
+        }
+        this.ultimoEstado = nuevoEstado;
+    }
+
+    iniciarCiclo(timestamp) {
+        this.cicloActual = { inicio: timestamp };
+    }
+
+    completarCiclo(timestamp) {
+        if (this.cicloActual) {
+            this.cicloActual.fin = timestamp;
+            this.ciclos.total++;
+            
+            const datosCiclo = {
+                numero: this.ciclos.total,
+                inicio: this.cicloActual.inicio,
+                fin: timestamp,
+                fecha: new Date(timestamp).toISOString().split('T')[0],
+                hora: new Date(timestamp).getHours()
+            };
+            
+            this.ciclos.historial.push(datosCiclo);
+            this.guardarCiclos();
+            this.verificarAlertasMantenimiento();
+            this.actualizarPredicciones();
+            this.cicloActual = null;
+        }
+    }
+
+    verificarAlertasMantenimiento() {
+        const total = this.ciclos.total;
+        this.alertas = [];
+        
+        const siguiente500 = Math.ceil(total / 500) * 500;
+        const ciclosRestantes = siguiente500 - total;
+        
+        if (total >= 2000 && total % 2000 === 0) {
+            this.alertas.push({
+                nivel: 'danger',
+                titulo: '⚠️ REVISIÓN GENERAL URGENTE',
+                mensaje: 'Se han alcanzado los 2000 ciclos',
+                accion: 'Inspección completa: motor, engranajes, estructura y sistema eléctrico',
+                prioridad: 'Alta'
+            });
+            this.agregarRegistroMantenimiento('Revisión General', 2000);
+        } else if (total >= 1000 && total % 1000 === 0) {
+            this.alertas.push({
+                nivel: 'warning',
+                titulo: '🛢️ LUBRICACIÓN REQUERIDA',
+                mensaje: '1000 ciclos alcanzados',
+                accion: 'Aplicar lubricante en guías, cadena o cremallera. Verificar desgaste.',
+                prioridad: 'Media'
+            });
+            this.agregarRegistroMantenimiento('Lubricación', 1000);
+        } else if (total >= 500 && total % 500 === 0) {
+            this.alertas.push({
+                nivel: 'info',
+                titulo: '🔍 REVISIÓN PREVENTIVA',
+                mensaje: '500 ciclos completados',
+                accion: 'Verificar tornillos, conexiones, fotocélulas y ajustes generales',
+                prioridad: 'Normal'
+            });
+            this.agregarRegistroMantenimiento('Revisión Preventiva', 500);
+        } else if (ciclosRestantes <= 50 && ciclosRestantes > 0) {
+            this.alertas.push({
+                nivel: 'warning',
+                titulo: '📢 MANTENIMIENTO PRÓXIMO',
+                mensaje: `Faltan ${ciclosRestantes} ciclos para la próxima revisión`,
+                accion: 'Programar mantenimiento preventivo con anticipación',
+                prioridad: 'Media'
+            });
+        }
+        
+        this.mostrarAlertas();
+        this.actualizarSaludSistema();
+    }
+
+    agregarRegistroMantenimiento(tipo, ciclosEnMantenimiento) {
+        this.historialMantenimiento.push({
+            fecha: new Date().toISOString(),
+            tipo: tipo,
+            ciclosEnMantenimiento: ciclosEnMantenimiento,
+            totalCiclos: this.ciclos.total
+        });
+        this.guardarHistorialMantenimiento();
+    }
+
+    actualizarSaludSistema() {
+        const total = this.ciclos.total;
+        const porcentajeDesgaste = Math.min(100, (total / 5000) * 100);
+        const salud = Math.max(0, 100 - porcentajeDesgaste);
+        
+        const circulo = document.getElementById('healthCircle');
+        const porcentajeSpan = document.getElementById('healthPercent');
+        const eficienciaSpan = document.getElementById('efficiency');
+        const desgasteSpan = document.getElementById('wearLevel');
+        const ciclosVidaSpan = document.getElementById('lifeCycles');
+        
+        if (circulo && porcentajeSpan) {
+            const circunferencia = 283;
+            const offset = circunferencia - (salud / 100) * circunferencia;
+            circulo.style.strokeDashoffset = offset;
+            porcentajeSpan.textContent = Math.round(salud);
+            
+            if (salud > 70) circulo.style.stroke = '#10b981';
+            else if (salud > 40) circulo.style.stroke = '#f59e0b';
+            else circulo.style.stroke = '#ef4444';
+        }
+        
+        if (eficienciaSpan) {
+            const eficiencia = Math.max(0, 100 - (total / 100));
+            eficienciaSpan.textContent = Math.round(eficiencia) + '%';
+        }
+        
+        if (desgasteSpan) {
+            desgasteSpan.textContent = Math.round(porcentajeDesgaste) + '%';
+        }
+        
+        if (ciclosVidaSpan) {
+            ciclosVidaSpan.textContent = `${total} / 5000`;
+        }
+    }
+
+    actualizarPredicciones() {
+        const total = this.ciclos.total;
+        const siguiente500 = Math.ceil(total / 500) * 500;
+        const ciclosRestantes = siguiente500 - total;
+        
+        const proximoMantenimientoSpan = document.getElementById('nextMaintenance');
+        const ciclosRestantesSpan = document.getElementById('cyclesToNext');
+        
+        if (proximoMantenimientoSpan) {
+            if (siguiente500 === 500) proximoMantenimientoSpan.textContent = 'Revisión 500 ciclos';
+            else if (siguiente500 === 1000) proximoMantenimientoSpan.textContent = 'Lubricación';
+            else if (siguiente500 === 2000) proximoMantenimientoSpan.textContent = 'Revisión General';
+            else proximoMantenimientoSpan.textContent = `Revisión en ${siguiente500} ciclos`;
+        }
+        
+        if (ciclosRestantesSpan) {
+            ciclosRestantesSpan.textContent = `${ciclosRestantes} ciclos restantes`;
+        }
+    }
+
+    mostrarAlertas() {
+        const contenedor = document.getElementById('alertsContainer');
+        const contadorAlertasSpan = document.getElementById('alertCount');
+        
+        if (!contenedor) return;
+        
+        if (this.alertas.length === 0) {
+            contenedor.innerHTML = '<div class="alert alert-success">✅ Todo en orden. El sistema opera correctamente.</div>';
+            if (contadorAlertasSpan) contadorAlertasSpan.textContent = '0 alertas';
+            return;
+        }
+        
+        if (contadorAlertasSpan) contadorAlertasSpan.textContent = `${this.alertas.length} alertas`;
+        
+        contenedor.innerHTML = this.alertas.map(alerta => `
+            <div class="alert alert-${alerta.nivel}">
+                <strong>${alerta.titulo}</strong>
+                <div>${alerta.mensaje}</div>
+                <small>📋 ${alerta.accion}</small>
+                <span class="priority-badge">Prioridad: ${alerta.prioridad}</span>
+            </div>
+        `).join('');
+        
+        // Actualizar recomendaciones
+        this.actualizarRecomendaciones();
+    }
+
+    actualizarRecomendaciones() {
+        const contenedor = document.getElementById('recommendationsList');
+        if (!contenedor) return;
+        
+        const recomendaciones = [];
+        
+        if (this.ciclos.total > 4000) {
+            recomendaciones.push('⚠️ Considere reemplazo preventivo del motor en los próximos meses');
+        } else if (this.ciclos.total > 3000) {
+            recomendaciones.push('🔧 Programar inspección de motor y engranajes');
+        } else if (this.ciclos.total > 2000) {
+            recomendaciones.push('🛢️ Verificar nivel de lubricación cada 2 semanas');
+        } else if (this.ciclos.total > 1000) {
+            recomendaciones.push('✅ Mantenimiento regular según lo programado');
+        } else {
+            recomendaciones.push('🌟 Sistema en excelente estado, siga con el uso normal');
+        }
+        
+        recomendaciones.push('📱 Revise mensualmente el estado de las fotocélulas');
+        recomendaciones.push('🔌 Verifique conexiones eléctricas cada 3 meses');
+        
+        contenedor.innerHTML = recomendaciones.map(rec => `
+            <div class="recommendation-item">${rec}</div>
+        `).join('');
+        
+        // Actualizar calendario
+        this.actualizarCalendario();
+    }
+
+    actualizarCalendario() {
+        const contenedor = document.getElementById('scheduleTimeline');
+        if (!contenedor) return;
+        
+        const proximos = [];
+        const total = this.ciclos.total;
+        
+        [500, 1000, 2000].forEach(limite => {
+            const siguiente = Math.ceil(total / limite) * limite;
+            if (siguiente > total) {
+                const restantes = siguiente - total;
+                let tipo = '';
+                if (limite === 500) tipo = '🔍 Revisión Preventiva';
+                else if (limite === 1000) tipo = '🛢️ Lubricación';
+                else tipo = '🔧 Revisión General';
+                
+                proximos.push({
+                    tipo: tipo,
+                    ciclosRestantes: restantes,
+                    cuando: restantes <= 100 ? '⚠️ PRÓXIMO' : 'Programado'
+                });
+            }
+        });
+        
+        contenedor.innerHTML = proximos.map(item => `
+            <div class="schedule-item">
+                <strong>${item.tipo}</strong><br>
+                <small>Faltan ${item.ciclosRestantes} ciclos - ${item.cuando}</small>
+            </div>
+        `).join('');
+        
+        if (proximos.length === 0) {
+            contenedor.innerHTML = '<div class="empty-state">No hay mantenimientos programados próximamente</div>';
+        }
+    }
+
+    obtenerCiclosPorDia(dias = 7) {
+        const diario = {};
+        const hoy = new Date();
+        
+        for (let i = 0; i < dias; i++) {
+            const fecha = new Date(hoy);
+            fecha.setDate(fecha.getDate() - i);
+            const fechaStr = fecha.toISOString().split('T')[0];
+            diario[fechaStr] = 0;
+        }
+        
+        this.ciclos.historial.forEach(ciclo => {
+            if (diario[ciclo.fecha] !== undefined) {
+                diario[ciclo.fecha]++;
+            }
+        });
+        
+        return Object.entries(diario).reverse();
+    }
+
+    obtenerCiclosPorHora() {
+        const porHora = Array(24).fill(0);
+        this.ciclos.historial.forEach(ciclo => {
+            porHora[ciclo.hora]++;
+        });
+        return porHora;
+    }
+
+    obtenerEstadisticasMensuales() {
+        const mensual = {};
+        this.ciclos.historial.forEach(ciclo => {
+            const mes = ciclo.fecha.substring(0, 7);
+            mensual[mes] = (mensual[mes] || 0) + 1;
+        });
+        return Object.entries(mensual).slice(-6);
+    }
+
+    obtenerCiclosHoy() {
+        const hoy = new Date().toISOString().split('T')[0];
+        return this.ciclos.historial.filter(ciclo => ciclo.fecha === hoy).length;
+    }
+
+    obtenerTendenciaSemanal() {
+        const hoy = this.obtenerCiclosHoy();
+        const ayer = new Date();
+        ayer.setDate(ayer.getDate() - 1);
+        const ayerStr = ayer.toISOString().split('T')[0];
+        const ciclosAyer = this.ciclos.historial.filter(c => c.fecha === ayerStr).length;
+        return hoy - ciclosAyer;
+    }
+}
+
+// Inicializar sistema
+const mantenimiento = new SistemaMantenimiento();
