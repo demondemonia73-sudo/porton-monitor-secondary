@@ -93,7 +93,7 @@ class RegistroEventos {
         const filtrados = this.filtrarEventos();
         
         if (filtrados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4">No hay eventos registrados</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4">No hay eventos registrados</td>' + '</td>';
             return;
         }
         
