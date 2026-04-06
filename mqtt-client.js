@@ -1,4 +1,3 @@
-// Configuración MQTT
 const CONFIG_MQTT = {
     broker: 'wss://broker.hivemq.com:8000/mqtt',
     topics: {
@@ -24,7 +23,6 @@ function conectarMQTT() {
         console.log('✅ Conectado al broker MQTT');
         actualizarEstadoMQTT(true);
         
-        // Suscribirse a todos los temas
         Object.values(CONFIG_MQTT.topics).forEach(topico => {
             clienteMQTT.subscribe(topico, (err) => {
                 if (!err) console.log(`📡 Suscrito a: ${topico}`);
@@ -75,9 +73,13 @@ function procesarMensajeMQTT(topico, datos) {
         case 'porton/estado':
             registro.agregarEvento('ESTADO', datos);
             mantenimiento.procesarCambioEstado(datos.estado, timestamp);
-            document.getElementById('currentState').textContent = datos.estado;
+            const currentStateSpan = document.getElementById('currentState');
+            if (currentStateSpan) currentStateSpan.textContent = datos.estado;
             actualizarEstadisticas();
             actualizarGraficos();
+            if (typeof notificaciones !== 'undefined') {
+                notificaciones.alertaEstado(datos.estado);
+            }
             break;
             
         case 'porton/sensores':
@@ -90,7 +92,6 @@ function procesarMensajeMQTT(topico, datos) {
     }
 }
 
-// Iniciar conexión cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
     conectarMQTT();
 });
