@@ -1,32 +1,21 @@
-// Generador de PDF y Excel - VERSIÓN CORREGIDA
+// Generador de PDF y Excel - VERSIÓN CON LOGOS DESDE GITHUB
 class GeneradorPDF {
     constructor() {
-        this.logos = {
-            instituto: null,
-            carrera: null
+        // URLs de los logos en GitHub (CORREGIDO: .webp para la carrera)
+        this.urlsLogos = {
+            instituto: window.location.origin + '/porton-monitor-secondary/img/logo-instituto.png',
+            carrera: window.location.origin + '/porton-monitor-secondary/img/logo-carrera.webp'
         };
-        this.cargarLogos();
-        this.cargarLibrerias();
-    }
-
-    async cargarLibrerias() {
-        // Cargar SheetJS si no existe
-        if (typeof XLSX === 'undefined') {
-            await this.cargarSheetJS();
-        }
-    }
-
-    async cargarLogos() {
-        const logoInstituto = localStorage.getItem('logo_instituto');
-        const logoCarrera = localStorage.getItem('logo_carrera');
         
-        if (logoInstituto) this.logos.instituto = logoInstituto;
-        if (logoCarrera) this.logos.carrera = logoCarrera;
+        // También intentar cargar desde localStorage como respaldo
+        this.logosCache = {
+            instituto: localStorage.getItem('logo_instituto'),
+            carrera: localStorage.getItem('logo_carrera')
+        };
     }
 
     async generarReportePDF(tipo = 'completo') {
         try {
-            // Cargar jsPDF si no está disponible
             if (typeof jspdf === 'undefined') {
                 await this.cargarJsPDF();
             }
@@ -66,26 +55,48 @@ class GeneradorPDF {
         }
     }
 
+    async cargarImagenDesdeURL(url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.onerror = reject;
+            img.src = url;
+        });
+    }
+
     async agregarEncabezadoConLogos(doc) {
         const pageWidth = doc.internal.pageSize.getWidth();
         const logoWidth = 25;
         const logoHeight = 25;
         
+        // Intentar cargar logo del Instituto
+        let logoInstitutoData = null;
+        try {
+            logoInstitutoData = await this.cargarImagenDesdeURL(this.urlsLogos.instituto);
+        } catch(e) {
+            console.log('No se pudo cargar logo instituto desde GitHub, intentando desde localStorage');
+            if (this.logosCache.instituto) {
+                logoInstitutoData = this.logosCache.instituto;
+            }
+        }
+        
         // Logo izquierdo (Instituto)
-        if (this.logos.instituto) {
+        if (logoInstitutoData) {
             try {
-                doc.addImage(this.logos.instituto, 'PNG', 15, 10, logoWidth, logoHeight);
+                doc.addImage(logoInstitutoData, 'PNG', 15, 10, logoWidth, logoHeight);
             } catch(e) {
-                doc.setFontSize(9);
-                doc.setTextColor(100);
-                doc.text('Instituto Tecnológico', 15, 20);
-                doc.text('Industrial', 15, 27);
+                this.dibujarTextoInstituto(doc, 15, 20);
             }
         } else {
-            doc.setFontSize(9);
-            doc.setTextColor(100);
-            doc.text('Instituto Tecnológico', 15, 20);
-            doc.text('Industrial Brasil Bolivia', 15, 27);
+            this.dibujarTextoInstituto(doc, 15, 20);
         }
         
         // Título central
@@ -100,21 +111,26 @@ class GeneradorPDF {
         doc.text('Sistema Predictivo de Mantenimiento', pageWidth / 2, 28, { align: 'center' });
         doc.text('Portón Automático', pageWidth / 2, 34, { align: 'center' });
         
+        // Intentar cargar logo de la Carrera (ahora con .webp)
+        let logoCarreraData = null;
+        try {
+            logoCarreraData = await this.cargarImagenDesdeURL(this.urlsLogos.carrera);
+        } catch(e) {
+            console.log('No se pudo cargar logo carrera desde GitHub, intentando desde localStorage');
+            if (this.logosCache.carrera) {
+                logoCarreraData = this.logosCache.carrera;
+            }
+        }
+        
         // Logo derecho (Carrera)
-        if (this.logos.carrera) {
+        if (logoCarreraData) {
             try {
-                doc.addImage(this.logos.carrera, 'PNG', pageWidth - 40, 10, logoWidth, logoHeight);
+                doc.addImage(logoCarreraData, 'PNG', pageWidth - 40, 10, logoWidth, logoHeight);
             } catch(e) {
-                doc.setFontSize(8);
-                doc.setTextColor(100);
-                doc.text('Ingeniería', pageWidth - 35, 20);
-                doc.text('Informática', pageWidth - 35, 27);
+                this.dibujarTextoUniversidad(doc, pageWidth - 40, 20);
             }
         } else {
-            doc.setFontSize(8);
-            doc.setTextColor(100);
-            doc.text('Ingeniería', pageWidth - 35, 20);
-            doc.text('Informática', pageWidth - 35, 27);
+            this.dibujarTextoUniversidad(doc, pageWidth - 40, 20);
         }
         
         doc.setDrawColor(200, 200, 200);
@@ -131,6 +147,20 @@ class GeneradorPDF {
         doc.text(`Fecha: ${fechaActual}`, pageWidth - 45, 50);
         
         return 55;
+    }
+
+    dibujarTextoInstituto(doc, x, y) {
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text('Instituto Tecnológico', x, y);
+        doc.text('Industrial Brasil Bolivia', x, y + 5);
+    }
+
+    dibujarTextoUniversidad(doc, x, y) {
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text('Ingeniería', x + 5, y);
+        doc.text('Informática', x + 5, y + 5);
     }
 
     async agregarReporteCompleto(doc) {
@@ -217,7 +247,7 @@ class GeneradorPDF {
                 if (yPos > 270) {
                     doc.addPage();
                     yPos = 20;
-                    this.agregarEncabezadoConLogos(doc);
+                    await this.agregarEncabezadoConLogos(doc);
                     yPos = 50;
                 }
                 doc.text(`${fecha.substring(5)}: ${cantidad} ciclos`, 20, yPos);
@@ -472,16 +502,13 @@ class GeneradorPDF {
 
     async exportarExcelCompleto() {
         try {
-            // Asegurar que SheetJS está cargado
             if (typeof XLSX === 'undefined') {
                 await this.cargarSheetJS();
-                // Pequeña pausa para asegurar carga
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
             
             const wb = XLSX.utils.book_new();
             
-            // Hoja 1: Resumen
             const totalCiclos = typeof mantenimiento !== 'undefined' ? mantenimiento.ciclos.total : 0;
             const ciclosHoy = typeof mantenimiento !== 'undefined' ? mantenimiento.obtenerCiclosHoy() : 0;
             const estadoActual = document.getElementById('currentState')?.textContent || '---';
@@ -509,7 +536,6 @@ class GeneradorPDF {
             wsResumen['!cols'] = [{wch:25}, {wch:15}];
             XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
             
-            // Hoja 2: Ciclos por día
             const ciclosData = [['Fecha', 'Ciclos']];
             if (typeof mantenimiento !== 'undefined') {
                 const ciclosPorDia = mantenimiento.obtenerCiclosPorDia(30);
@@ -522,7 +548,6 @@ class GeneradorPDF {
             wsCiclos['!cols'] = [{wch:15}, {wch:10}];
             XLSX.utils.book_append_sheet(wb, wsCiclos, 'Ciclos por Día');
             
-            // Hoja 3: Eventos recientes
             const eventosData = [['Fecha', 'Tipo', 'Evento', 'Detalles']];
             if (typeof registro !== 'undefined' && registro.eventos) {
                 registro.eventos.slice(0, 500).forEach(evento => {
@@ -539,7 +564,6 @@ class GeneradorPDF {
             wsEventos['!cols'] = [{wch:20}, {wch:12}, {wch:15}, {wch:30}];
             XLSX.utils.book_append_sheet(wb, wsEventos, 'Eventos');
             
-            // Guardar archivo
             const fecha = new Date().toISOString().split('T')[0];
             XLSX.writeFile(wb, `reporte_porton_${fecha}.xlsx`);
             
@@ -552,10 +576,8 @@ class GeneradorPDF {
     }
 }
 
-// Inicializar generador
 const generadorPDF = new GeneradorPDF();
 
-// Funciones globales
 function generarPDFCompleto() {
     generadorPDF.generarReportePDF('completo');
 }
