@@ -2,8 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊 Smart Gate Monitor - Sistema Predictivo de Mantenimiento</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="theme-color" content="#1e3c72">
+    <title>📊 SmartGate Monitor - Sistema Predictivo de Mantenimiento</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5.0.3/dist/mqtt.min.js"></script>
@@ -11,20 +12,23 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
+        <!-- Sidebar - Menú lateral responsivo -->
+        <aside class="sidebar" id="sidebar">
             <div class="logo">
                 <div class="logo-icon">🚪</div>
                 <div class="logo-text">
                     <h2>SmartGate</h2>
-                    <span>Predictive Maintenance</span>
+                    <span>Mantenimiento Predictivo</span>
                 </div>
             </div>
+            
+            <!-- Botón cerrar sidebar en móvil -->
+            <button class="close-sidebar" id="closeSidebar">✕</button>
             
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" data-view="dashboard">
                     <span class="nav-icon">📊</span>
-                    <span>Dashboard</span>
+                    <span>Panel Principal</span>
                 </a>
                 <a href="#" class="nav-item" data-view="maintenance">
                     <span class="nav-icon">🔧</span>
@@ -36,7 +40,7 @@
                 </a>
                 <a href="#" class="nav-item" data-view="analytics">
                     <span class="nav-icon">📈</span>
-                    <span>Analytics</span>
+                    <span>Análisis</span>
                 </a>
             </nav>
             
@@ -46,24 +50,27 @@
             </div>
         </aside>
 
-        <!-- Main Content -->
+        <!-- Botón para abrir sidebar en móvil -->
+        <button class="open-sidebar" id="openSidebar">☰</button>
+
+        <!-- Contenido principal -->
         <main class="main-content">
             <!-- Header -->
             <header class="top-header">
                 <div class="header-title">
                     <h1>Sistema Predictivo de Mantenimiento</h1>
-                    <p>Monitoreo en tiempo real y análisis de ciclos</p>
+                    <p>Monitoreo en tiempo real del portón automático</p>
                 </div>
                 <div class="header-actions">
                     <button onclick="exportToCSV()" class="btn-icon" title="Exportar CSV">📄</button>
                     <button onclick="exportToJSON()" class="btn-icon" title="Exportar JSON">📋</button>
-                    <button onclick="refreshData()" class="btn-icon" title="Refrescar">🔄</button>
+                    <button onclick="refreshData()" class="btn-icon" title="Actualizar">🔄</button>
                 </div>
             </header>
 
-            <!-- Dashboard View -->
+            <!-- Vista: Panel Principal -->
             <div id="dashboardView" class="view active">
-                <!-- KPI Cards -->
+                <!-- Tarjetas KPI -->
                 <div class="kpi-grid">
                     <div class="kpi-card">
                         <div class="kpi-icon">🔄</div>
@@ -79,7 +86,7 @@
                         <div class="kpi-info">
                             <span class="kpi-label">Ciclos Hoy</span>
                             <span class="kpi-value" id="todayCycles">0</span>
-                            <span class="kpi-sub">Meta: 50/día</span>
+                            <span class="kpi-sub">Meta: 50 ciclos/día</span>
                         </div>
                     </div>
                     
@@ -102,7 +109,7 @@
                     </div>
                 </div>
 
-                <!-- Maintenance Alerts -->
+                <!-- Panel de Alertas -->
                 <div class="alerts-panel">
                     <div class="panel-header">
                         <h3>⚠️ Alertas y Recomendaciones</h3>
@@ -111,7 +118,7 @@
                     <div id="alertsContainer" class="alerts-container"></div>
                 </div>
 
-                <!-- Charts Row -->
+                <!-- Gráficos -->
                 <div class="charts-grid">
                     <div class="chart-panel">
                         <div class="panel-header">
@@ -133,19 +140,19 @@
                     </div>
                 </div>
 
-                <!-- Recent Activity -->
+                <!-- Actividad Reciente -->
                 <div class="activity-panel">
                     <div class="panel-header">
                         <h3>🕐 Actividad Reciente</h3>
                         <button onclick="clearEvents()" class="btn-text">Limpiar historial</button>
                     </div>
                     <div class="activity-timeline" id="activityTimeline">
-                        <div class="empty-state">Esperando actividad...</div>
+                        <div class="empty-state">Esperando actividad del portón...</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Maintenance View -->
+            <!-- Vista: Mantenimiento -->
             <div id="maintenanceView" class="view">
                 <div class="maintenance-dashboard">
                     <div class="health-score">
@@ -169,6 +176,10 @@
                                 <span>Desgaste estimado:</span>
                                 <strong id="wearLevel">0%</strong>
                             </div>
+                            <div class="detail-item">
+                                <span>Ciclos de vida útil:</span>
+                                <strong id="lifeCycles">0 / 5000</strong>
+                            </div>
                         </div>
                     </div>
 
@@ -184,11 +195,11 @@
                 </div>
             </div>
 
-            <!-- History View -->
+            <!-- Vista: Historial -->
             <div id="historyView" class="view">
                 <div class="history-filters">
-                    <input type="date" id="dateFrom" class="filter-input">
-                    <input type="date" id="dateTo" class="filter-input">
+                    <input type="date" id="dateFrom" class="filter-input" placeholder="Fecha desde">
+                    <input type="date" id="dateTo" class="filter-input" placeholder="Fecha hasta">
                     <select id="eventTypeFilter" class="filter-input">
                         <option value="all">Todos los eventos</option>
                         <option value="ESTADO">Cambios de estado</option>
@@ -196,6 +207,7 @@
                         <option value="CICLO">Ciclos completos</option>
                     </select>
                     <button onclick="filterHistory()" class="btn-primary">Filtrar</button>
+                    <button onclick="resetFilters()" class="btn-secondary">Limpiar filtros</button>
                 </div>
                 <div class="history-stats">
                     <div class="stat-mini">
@@ -221,16 +233,18 @@
                 </div>
             </div>
 
-            <!-- Analytics View -->
+            <!-- Vista: Análisis -->
             <div id="analyticsView" class="view">
                 <div class="analytics-grid">
                     <div class="analytics-card">
                         <h3>📈 Proyección de Mantenimiento</h3>
                         <canvas id="projectionChart" height="200"></canvas>
+                        <p class="chart-note">Proyección basada en uso actual</p>
                     </div>
                     <div class="analytics-card">
-                        <h3>🎯 Ciclos vs Meta</h3>
+                        <h3>🎯 Progreso hacia próxima revisión</h3>
                         <canvas id="goalChart" height="200"></canvas>
+                        <p class="chart-note">Cada 500 ciclos = revisión preventiva</p>
                     </div>
                     <div class="analytics-card full-width">
                         <h3>📊 Estadísticas Mensuales</h3>
