@@ -93,7 +93,7 @@ class RegistroEventos {
         const filtrados = this.filtrarEventos();
         
         if (filtrados.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4">No hay eventos registrados</td>' + '</tr>';
+            tbody.innerHTML = '<tr><td colspan="4">No hay eventos registrados</td></tr>';
             return;
         }
         
@@ -106,7 +106,6 @@ class RegistroEventos {
             </tr>
         `).join('');
         
-        // Actualizar estadísticas
         document.getElementById('totalEvents').textContent = this.eventos.length;
         const esteMes = this.eventos.filter(e => {
             const fechaEvento = new Date(e.timestamp);
@@ -213,7 +212,6 @@ class RegistroEventos {
 
 const registro = new RegistroEventos();
 
-// Funciones globales
 function exportToCSV() { registro.exportarCSV(); }
 function exportToJSON() { registro.exportarJSON(); }
 function clearEvents() { registro.limpiarDatos(); }
@@ -236,7 +234,7 @@ function actualizarEstadisticas() {
     mantenimiento.actualizarPredicciones();
 }
 
-let graficoDiario, graficoPorHora, graficoProyeccion, graficoMeta, graficoMensual;
+let graficoDiario, graficoPorHora, graficoProyeccion, graficoMeta, graficoMensual, graficoComparacion, graficoTendencia;
 
 function inicializarGraficos() {
     const ctx1 = document.getElementById('dailyChart')?.getContext('2d');
@@ -244,6 +242,8 @@ function inicializarGraficos() {
     const ctx3 = document.getElementById('projectionChart')?.getContext('2d');
     const ctx4 = document.getElementById('goalChart')?.getContext('2d');
     const ctx5 = document.getElementById('monthlyChart')?.getContext('2d');
+    const ctx6 = document.getElementById('comparisonChart')?.getContext('2d');
+    const ctx7 = document.getElementById('trendChart')?.getContext('2d');
     
     if (ctx1) {
         graficoDiario = new Chart(ctx1, {
@@ -281,6 +281,22 @@ function inicializarGraficos() {
         graficoMensual = new Chart(ctx5, {
             type: 'bar',
             data: { labels: [], datasets: [{ label: 'Ciclos por mes', data: [], backgroundColor: '#3b82f6' }] },
+            options: { responsive: true }
+        });
+    }
+    
+    if (ctx6) {
+        graficoComparacion = new Chart(ctx6, {
+            type: 'bar',
+            data: { labels: ['Semana 1', 'Semana 2', 'Semana 3', 'Semana 4'], datasets: [{ label: 'Ciclos', data: [0,0,0,0], backgroundColor: '#10b981' }] },
+            options: { responsive: true }
+        });
+    }
+    
+    if (ctx7) {
+        graficoTendencia = new Chart(ctx7, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Tendencia de uso', data: [], borderColor: '#ef4444', fill: false }] },
             options: { responsive: true }
         });
     }
@@ -323,9 +339,25 @@ function actualizarGraficos() {
         graficoProyeccion.data.datasets[0].data = proyeccion;
         graficoProyeccion.update();
     }
+    
+    if (graficoComparacion) {
+        const semanas = [[], [], [], []];
+        mantenimiento.ciclos.historial.slice(-28).forEach(ciclo => {
+            const semana = Math.floor((new Date() - new Date(ciclo.fecha)) / (7*24*60*60*1000));
+            if (semana < 4) semanas[semana].push(ciclo);
+        });
+        graficoComparacion.data.datasets[0].data = semanas.map(s => s.length);
+        graficoComparacion.update();
+    }
+    
+    if (graficoTendencia) {
+        const ultimos30 = mantenimiento.obtenerCiclosPorDia(30);
+        graficoTendencia.data.labels = ultimos30.map(d => d[0].substring(5));
+        graficoTendencia.data.datasets[0].data = ultimos30.map(d => d[1]);
+        graficoTendencia.update();
+    }
 }
 
-// Navegación entre vistas
 document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
         e.preventDefault();
@@ -339,14 +371,12 @@ document.querySelectorAll('.nav-item').forEach(item => {
         if (vista === 'history') registro.actualizarTablaHistorial();
         if (vista === 'maintenance') mantenimiento.actualizarSaludSistema();
         
-        // Cerrar sidebar en móvil después de navegar
         if (window.innerWidth <= 1024) {
             document.getElementById('sidebar').classList.add('closed');
         }
     });
 });
 
-// Sidebar responsive
 document.getElementById('openSidebar')?.addEventListener('click', () => {
     document.getElementById('sidebar').classList.remove('closed');
 });
@@ -355,7 +385,6 @@ document.getElementById('closeSidebar')?.addEventListener('click', () => {
     document.getElementById('sidebar').classList.add('closed');
 });
 
-// Cerrar sidebar al hacer clic fuera en móvil
 document.addEventListener('click', (e) => {
     if (window.innerWidth <= 1024) {
         const sidebar = document.getElementById('sidebar');
@@ -366,7 +395,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Inicializar
 document.addEventListener('DOMContentLoaded', () => {
     inicializarGraficos();
     actualizarEstadisticas();
@@ -374,3 +402,65 @@ document.addEventListener('DOMContentLoaded', () => {
     mantenimiento.actualizarSaludSistema();
     mantenimiento.verificarAlertasMantenimiento();
 });
+
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('dark_mode', isDark);
+    const btn = document.querySelector('.btn-icon[title="Modo oscuro"]');
+    if (btn) btn.textContent = isDark ? '☀️' : '🌙';
+}
+
+function changeColorTheme(theme) {
+    const root = document.documentElement;
+    const themes = {
+        default: { primary: '#667eea', secondary: '#764ba2' },
+        blue: { primary: '#3b82f6', secondary: '#2563eb' },
+        green: { primary: '#10b981', secondary: '#059669' },
+        orange: { primary: '#f59e0b', secondary: '#d97706' }
+    };
+    const colors = themes[theme];
+    if (colors) {
+        root.style.setProperty('--primary-color', colors.primary);
+        root.style.setProperty('--secondary-color', colors.secondary);
+    }
+}
+
+if (localStorage.getItem('dark_mode') === 'true') {
+    document.body.classList.add('dark-mode');
+}
+
+const theme = localStorage.getItem('color_theme') || 'default';
+const themeSelect = document.getElementById('colorTheme');
+if (themeSelect) {
+    themeSelect.value = theme;
+    changeColorTheme(theme);
+}
+
+document.getElementById('darkModeToggle')?.addEventListener('change', (e) => {
+    if (e.target.checked && !document.body.classList.contains('dark-mode')) toggleDarkMode();
+    else if (!e.target.checked && document.body.classList.contains('dark-mode')) toggleDarkMode();
+});
+
+document.getElementById('colorTheme')?.addEventListener('change', (e) => {
+    localStorage.setItem('color_theme', e.target.value);
+    changeColorTheme(e.target.value);
+});
+
+function updateDailyGoal() {
+    const goal = document.getElementById('dailyGoal').value;
+    localStorage.setItem('daily_goal', goal);
+    const sub = document.querySelector('.kpi-sub');
+    if (sub && sub.textContent.includes('Meta:')) {
+        sub.textContent = `Meta: ${goal} ciclos/día`;
+    }
+    alert(`Meta diaria actualizada a ${goal} ciclos`);
+}
+
+function clearAllData() {
+    if (confirm('⚠️ ¿ELIMINAR TODOS LOS DATOS? Esta acción es irreversible.')) {
+        localStorage.clear();
+        alert('Todos los datos han sido eliminados. La página se recargará.');
+        location.reload();
+    }
+}
