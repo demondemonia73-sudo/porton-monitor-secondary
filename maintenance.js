@@ -1,12 +1,15 @@
-// Sistema de mantenimiento - VERSIÓN CORREGIDA
+// Sistema de mantenimiento - CONTADOR DE CICLOS POR SENSORES
 class SistemaMantenimiento {
     constructor() {
         this.ciclos = this.cargarCiclos();
-        this.ultimoEstado = null;
+        this.ultimoEstadoSensor = {
+            abierto: false,
+            cerrado: false
+        };
         this.alertas = [];
         this.historialMantenimiento = this.cargarHistorialMantenimiento();
         this.cicloActual = null;
-        this.ultimoEstadoRegistrado = null; // Para debug
+        this.ultimoEstadoPorton = null; // Para debug
     }
 
     cargarCiclos() {
@@ -34,62 +37,62 @@ class SistemaMantenimiento {
     }
 
     // ============================================================
-    // FUNCIÓN PRINCIPAL: DETECTA CICLOS (ABIERTO + CERRADO)
+    // MÉTODO 1: Procesar cambio de estado (por si se usa)
     // ============================================================
     procesarCambioEstado(nuevoEstado, timestamp) {
-        console.log(`🔄 Procesando cambio de estado: "${this.ultimoEstado}" → "${nuevoEstado}"`);
+        console.log(`🔄 Estado del portón: ${nuevoEstado}`);
+        this.ultimoEstadoPorton = nuevoEstado;
+        // No usamos esto para contar ciclos, solo para mostrar estado
+    }
+
+    // ============================================================
+    // MÉTODO PRINCIPAL: Procesar sensores de final de carrera
+    // Cada vez que cerrado pasa de false a true = 1 CICLO
+    // ============================================================
+    procesarSensores(sensores, timestamp) {
+        const abierto = sensores.abierto === true;
+        const cerrado = sensores.cerrado === true;
         
-        // Detectar inicio de ciclo: cuando pasa de CERRADO a ABIERTO
-        if (this.ultimoEstado === 'CERRADO' && nuevoEstado === 'ABIERTO') {
-            console.log('🚪 INICIO DE CICLO DETECTADO (CERRADO → ABIERTO)');
-            this.iniciarCiclo(timestamp);
-        }
+        console.log(`📡 Sensores: ABIERTO=${abierto}, CERRADO=${cerrado}`);
         
-        // Detectar fin de ciclo: cuando pasa de ABIERTO a CERRADO
-        if (this.ultimoEstado === 'ABIERTO' && nuevoEstado === 'CERRADO') {
-            console.log('🔒 FIN DE CICLO DETECTADO (ABIERTO → CERRADO)');
+        // Detectar flanco de cierre: cerrado pasa de false a true
+        if (!this.ultimoEstadoSensor.cerrado && cerrado) {
+            console.log('🔒 FLANCO DE CIERRE DETECTADO (sensor cerrado activado)');
             this.completarCiclo(timestamp);
         }
         
-        // Guardar el estado actual para la próxima vez
-        this.ultimoEstado = nuevoEstado;
-        this.ultimoEstadoRegistrado = nuevoEstado;
-        
-        // Mostrar en consola el total actual
-        console.log(`📊 Total de ciclos hasta ahora: ${this.ciclos.total}`);
-    }
-
-    iniciarCiclo(timestamp) {
-        this.cicloActual = { inicio: timestamp };
-        console.log(`⏱️ Ciclo iniciado a las ${new Date(timestamp).toLocaleTimeString()}`);
+        // Guardar estados actuales para la próxima comparación
+        this.ultimoEstadoSensor = {
+            abierto: abierto,
+            cerrado: cerrado
+        };
     }
 
     completarCiclo(timestamp) {
-        if (this.cicloActual) {
-            this.cicloActual.fin = timestamp;
-            this.ciclos.total++;
-            
-            const datosCiclo = {
-                numero: this.ciclos.total,
-                inicio: this.cicloActual.inicio,
-                fin: timestamp,
-                fecha: new Date(timestamp).toISOString().split('T')[0],
-                hora: new Date(timestamp).getHours()
-            };
-            
-            this.ciclos.historial.push(datosCiclo);
-            this.guardarCiclos();
-            this.verificarAlertasMantenimiento();
-            this.actualizarPredicciones();
-            this.cicloActual = null;
-            
-            console.log(`✅ CICLO #${this.ciclos.total} COMPLETADO!`);
-            
-            // Actualizar UI
+        this.ciclos.total++;
+        
+        const datosCiclo = {
+            numero: this.ciclos.total,
+            timestamp: timestamp,
+            fecha: new Date(timestamp).toISOString().split('T')[0],
+            hora: new Date(timestamp).getHours(),
+            minuto: new Date(timestamp).getMinutes()
+        };
+        
+        this.ciclos.historial.push(datosCiclo);
+        this.guardarCiclos();
+        this.verificarAlertasMantenimiento();
+        this.actualizarPredicciones();
+        this.actualizarSaludSistema();
+        
+        console.log(`✅ CICLO #${this.ciclos.total} COMPLETADO a las ${new Date(timestamp).toLocaleTimeString()}`);
+        
+        // Actualizar UI
+        if (typeof actualizarEstadisticas === 'function') {
             actualizarEstadisticas();
+        }
+        if (typeof actualizarGraficos === 'function') {
             actualizarGraficos();
-        } else {
-            console.warn('⚠️ Se detectó cierre sin un inicio de ciclo previo');
         }
     }
 
@@ -147,7 +150,6 @@ class SistemaMantenimiento {
         }
         
         this.mostrarAlertas();
-        this.actualizarSaludSistema();
     }
 
     agregarRegistroMantenimiento(tipo, ciclosEnMantenimiento) {
