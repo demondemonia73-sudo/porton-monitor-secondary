@@ -33,11 +33,11 @@
         body.menu-open {
             overflow: hidden;
         }
-        /* Botón de regreso en el menú */
+        /* Botón de regreso en el menú - estilo destacado */
         .back-button {
             margin-bottom: 20px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            padding-top: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 15px;
         }
         .back-button .nav-item {
             color: #fbbf24;
@@ -66,15 +66,15 @@
             <button class="close-sidebar" id="closeSidebar">✕</button>
             
             <nav class="nav-menu">
-                <!-- === BOTÓN DE REGRESO (ARRIBA DEL TODO) === -->
+                <!-- === BOTÓN DE REGRESO AL CONTROL (ARRIBA DEL TODO) === -->
                 <div class="back-button">
-                    <a href="https://demondemonia73-sudo.github.io/porton-dashboard/" target="_self" class="btn-icon" title="Regresar al panel principal" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
-                    <span class="nav-icon">🏠</span>
-                    <span>Regresar al Control</span>
+                    <a href="https://demondemonia73-sudo.github.io/porton-dashboard/" target="_self" class="nav-item">
+                        <span class="nav-icon">🏠</span>
+                        <span>Regresar al Control</span>
                     </a>
                 </div>
                 
-                <!-- === OPCIONES EXISTENTES === -->
+                <!-- === OPCIONES DEL SISTEMA === -->
                 <a href="#" class="nav-item active" data-view="dashboard">
                     <span class="nav-icon">📊</span>
                     <span>Panel Principal</span>
@@ -463,7 +463,7 @@
         <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="audio/mpeg">
     </audio>
 
-    <!-- Scripts (asegúrate que las rutas sean correctas) -->
+    <!-- Scripts -->
     <script src="maintenance.js"></script>
     <script src="registro.js"></script>
     <script src="notifications.js"></script>
@@ -472,7 +472,6 @@
     <script src="mqtt-client.js"></script>
     
     <script>
-        // Funciones para el menú responsive y logos (ya deberían estar en los otros archivos)
         // ========== CONTROL DEL MENÚ LATERAL ==========
         const sidebar = document.getElementById('sidebar');
         const openBtn = document.getElementById('openSidebar');
@@ -503,13 +502,11 @@
                 sidebar.classList.remove('open');
                 sidebar.classList.remove('closed');
             } else {
-                // En móvil, asegura que empiece cerrado
                 sidebar.classList.add('closed');
                 sidebar.classList.remove('open');
             }
         });
 
-        // Cerrar menú al hacer clic en un enlace (opcional)
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', () => {
                 if (window.innerWidth <= 1024) {
@@ -518,7 +515,7 @@
             });
         });
 
-        // Función para guardar logos (se mantiene)
+        // Función para guardar logos
         function guardarLogos() {
             const logoInstitutoInput = document.getElementById('logoInstitutoUpload');
             const logoCarreraInput = document.getElementById('logoCarreraUpload');
@@ -566,10 +563,9 @@
             }
         }
 
-        // Inicializar al cargar la página
+        // Inicializar
         document.addEventListener('DOMContentLoaded', () => {
             cargarLogosGuardados();
-            // Asegurar que el sidebar empiece cerrado en móvil al cargar
             if (window.innerWidth <= 1024) {
                 sidebar.classList.add('closed');
                 sidebar.classList.remove('open');
