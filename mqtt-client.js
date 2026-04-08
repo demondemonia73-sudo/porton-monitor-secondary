@@ -1,5 +1,18 @@
-const CONFIG_MQTT = {
-    broker: 'wss://broker.hivemq.com:8000/mqtt',
+// ============================================================
+// CONFIGURACIÓN MQTT PARA BROKER PRIVADO DE HIVEMQ CLOUD
+// ============================================================
+
+const MQTT_CONFIG = {
+    broker: 'wss://fce01a048733432a9eae2f8d8454ef46.s1.eu.hivemq.cloud:8884/mqtt',
+    options: {
+        clientId: 'porton_monitor_' + Math.random().toString(16).substr(2, 8),
+        username: 'prueba',
+        password: 'Prueba2026',
+        clean: true,
+        reconnectPeriod: 5000,
+        connectTimeout: 30000,
+        rejectUnauthorized: false
+    },
     topics: {
         estado: 'porton/estado',
         sensores: 'porton/sensores',
@@ -7,91 +20,108 @@ const CONFIG_MQTT = {
     }
 };
 
-let clienteMQTT;
-let ultimoHeartbeat = null;
+let mqttClient;
+let lastHeartbeat = null;
 
-function conectarMQTT() {
-    const idCliente = 'monitor_porton_' + Math.random().toString(16).substr(2, 8);
+function connectMQTT() {
+    console.log('🔌 Conectando a MQTT broker:', MQTT_CONFIG.broker);
     
-    clienteMQTT = mqtt.connect(CONFIG_MQTT.broker, {
-        clientId: idCliente,
-        clean: true,
-        reconnectPeriod: 5000
-    });
+    mqttClient = mqtt.connect(MQTT_CONFIG.broker, MQTT_CONFIG.options);
     
-    clienteMQTT.on('connect', () => {
-        console.log('✅ Conectado al broker MQTT');
-        actualizarEstadoMQTT(true);
+    mqttClient.on('connect', () => {
+        console.log('✅ Conectado a HiveMQ Cloud');
+        updateMQTTStatus(true);
         
-        Object.values(CONFIG_MQTT.topics).forEach(topico => {
-            clienteMQTT.subscribe(topico, (err) => {
-                if (!err) console.log(`📡 Suscrito a: ${topico}`);
+        // Suscribirse a todos los topics
+        Object.values(MQTT_CONFIG.topics).forEach(topic => {
+            mqttClient.subscribe(topic, { qos: 1 }, (err) => {
+                if (!err) {
+                    console.log(`📡 Suscrito a: ${topic}`);
+                } else {
+                    console.error(`❌ Error suscribiendo a ${topic}:`, err);
+                }
             });
         });
     });
     
-    clienteMQTT.on('error', (err) => {
+    mqttClient.on('error', (err) => {
         console.error('❌ Error MQTT:', err);
-        actualizarEstadoMQTT(false);
+        updateMQTTStatus(false);
     });
     
-    clienteMQTT.on('message', (topico, mensaje) => {
+    mqttClient.on('message', (topic, message) => {
         try {
-            const datos = JSON.parse(mensaje.toString());
-            console.log(`📨 Mensaje recibido [${topico}]:`, datos);
-            procesarMensajeMQTT(topico, datos);
+            const payload = JSON.parse(message.toString());
+            console.log(`📨 Mensaje recibido [${topic}]:`, payload);
+            handleMQTTMessage(topic, payload);
         } catch (e) {
-            console.error('Error al procesar mensaje:', e);
+            console.error('Error parsing message:', e);
         }
     });
 }
 
-function actualizarEstadoMQTT(conectado) {
-    const estadoDiv = document.querySelector('.mqtt-status');
-    const indicador = estadoDiv?.querySelector('.status-indicator');
-    const texto = estadoDiv?.querySelector('.status-text');
+function updateMQTTStatus(connected) {
+    const statusDiv = document.querySelector('.mqtt-status');
+    const indicator = statusDiv?.querySelector('.status-indicator');
+    const text = statusDiv?.querySelector('.status-text');
     
-    if (indicador) {
-        if (conectado) {
-            indicador.classList.add('online');
-            indicador.classList.remove('offline');
+    if (indicator) {
+        if (connected) {
+            indicator.classList.add('online');
+            indicator.classList.remove('offline');
         } else {
-            indicador.classList.remove('online');
-            indicador.classList.add('offline');
+            indicator.classList.remove('online');
+            indicator.classList.add('offline');
         }
     }
     
-    if (texto) {
-        texto.textContent = conectado ? 'MQTT Conectado' : 'Desconectado';
+    if (text) {
+        text.textContent = connected ? 'MQTT Conectado' : 'Desconectado';
     }
 }
 
-function procesarMensajeMQTT(topico, datos) {
+function handleMQTTMessage(topic, data) {
     const timestamp = new Date().toISOString();
     
-    switch(topico) {
+    switch(topic) {
         case 'porton/estado':
-            registro.agregarEvento('ESTADO', datos);
-            mantenimiento.procesarCambioEstado(datos.estado, timestamp);
-            const currentStateSpan = document.getElementById('currentState');
-            if (currentStateSpan) currentStateSpan.textContent = datos.estado;
+            // Registrar evento completo
+            registro.agregarEvento('ESTADO', data);
+            
+            // Actualizar estado actual en la UI
+            const stateSpan = document.getElementById('currentState');
+            if (stateSpan && data.estado) {
+                stateSpan.textContent = data.estado;
+            }
+            
+            // Procesar ciclo (apertura + cierre)
+            mantenimiento.procesarCambioEstado(data.estado, timestamp);
+            
+            // Actualizar estadísticas
             actualizarEstadisticas();
             actualizarGraficos();
+            
+            // Notificación si está habilitada
             if (typeof notificaciones !== 'undefined') {
-                notificaciones.alertaEstado(datos.estado);
+                notificaciones.alertaEstado(data.estado);
             }
             break;
             
         case 'porton/sensores':
-            registro.agregarEvento('SENSORES', datos);
+            registro.agregarEvento('SENSORES', data);
             break;
             
         case 'porton/heartbeat':
-            ultimoHeartbeat = datos.online;
+            lastHeartbeat = data.online;
+            registro.agregarEvento('HEARTBEAT', { online: data.online });
             break;
+            
+        default:
+            console.log(`Topic no manejado: ${topic}`, data);
     }
 }
 
+// Iniciar conexión cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
-    conectarMQTT();
+    connectMQTT();
 });
