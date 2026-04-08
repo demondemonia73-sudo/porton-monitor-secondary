@@ -32,7 +32,6 @@ function connectMQTT() {
         console.log('✅ Conectado a HiveMQ Cloud');
         updateMQTTStatus(true);
         
-        // Suscribirse a todos los topics
         Object.values(MQTT_CONFIG.topics).forEach(topic => {
             mqttClient.subscribe(topic, { qos: 1 }, (err) => {
                 if (!err) {
@@ -85,23 +84,14 @@ function handleMQTTMessage(topic, data) {
     
     switch(topic) {
         case 'porton/estado':
-            // Registrar evento completo
             registro.agregarEvento('ESTADO', data);
-            
-            // Actualizar estado actual en la UI
             const stateSpan = document.getElementById('currentState');
             if (stateSpan && data.estado) {
                 stateSpan.textContent = data.estado;
             }
-            
-            // Procesar ciclo (apertura + cierre)
             mantenimiento.procesarCambioEstado(data.estado, timestamp);
-            
-            // Actualizar estadísticas
             actualizarEstadisticas();
             actualizarGraficos();
-            
-            // Notificación si está habilitada
             if (typeof notificaciones !== 'undefined') {
                 notificaciones.alertaEstado(data.estado);
             }
@@ -109,6 +99,10 @@ function handleMQTTMessage(topic, data) {
             
         case 'porton/sensores':
             registro.agregarEvento('SENSORES', data);
+            // ============================================
+            // AQUÍ SE PROCESAN LOS SENSORES PARA CONTAR CICLOS
+            // ============================================
+            mantenimiento.procesarSensores(data, timestamp);
             break;
             
         case 'porton/heartbeat':
@@ -121,7 +115,6 @@ function handleMQTTMessage(topic, data) {
     }
 }
 
-// Iniciar conexión cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
     connectMQTT();
 });
